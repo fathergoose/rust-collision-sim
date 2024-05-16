@@ -4,16 +4,31 @@ extern crate opengl_graphics;
 extern crate piston;
 
 use glutin_window::GlutinWindow as Window;
+use graphics::math::Vec2d;
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
+use rand::prelude::*;
+
+const X_MAX: u32 = 1_000;
+const Y_MAX: u32 = 1_000;
 
 pub struct App {
     gl: GlGraphics,
-    rotation: f64,
+    bodies: Vec<Ball>,
 }
 
+struct Ball {
+    position: Vec2d,
+    velocity: Vec2d,
+    radius: f64,
+}
+
+/*
+    render: Draw a visualization of the simulation
+    update: Update the parameters of the simulation
+*/
 impl App {
     fn render(&mut self, args: &RenderArgs) {
         use graphics::*;
@@ -21,45 +36,55 @@ impl App {
         const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
         const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 
-        let square = rectangle::square(0.0, 0.0, 50.0);
-        let rotation = self.rotation;
-        let (x, y) = (args.window_size[0] / 2.0, args.window_size[1] / 2.0);
+        self.gl.draw(args.viewport(), |c, g| {
+            clear(GREEN, g);
 
-        self.gl.draw(args.viewport(), |c, gl| {
-            clear(GREEN, gl);
-
-            let transform = c
-                .transform
-                .trans(x, y)
-                .rot_rad(rotation)
-                .trans(-25.0, -25.0);
-
-            // Draw a box rotating around the middle of the screen.
-            rectangle(RED, square, transform, gl);
+            for b in self.bodies.iter() {
+                let square = rectangle::square(0.0, 0.0, b.radius * 2.0);
+                let transform = c.transform.trans_pos(b.position);
+                ellipse(RED, square, transform, g);
+            }
         });
     }
 
     fn update(&mut self, args: &UpdateArgs) {
-        // rotate 2 rad * sec^-1
-        self.rotation += 2.0 * args.dt;
+        let surface = [Into::<f64>::into(X_MAX), Into::<f64>::into(Y_MAX)];
+        for b in self.bodies.iter_mut() {
+            b.position[0] += args.dt * b.velocity[0];
+            b.position[1] += args.dt * b.velocity[1];
+            // TODO: This currently undershoots the minimum and overshoots the maximums
+            // I'm assuming that's because the cooridnates for drawing are the upper left-hand
+            // corner of the bounding rectangle and not the center of our circle
+            for (i, item) in surface.iter().enumerate() {
+                if b.position[i] >= item - b.radius || b.position[i] <= b.radius {
+                    b.velocity[i] = -b.velocity[i]
+                }
+            }
+        }
     }
 }
 
 fn main() {
-    let opengl = OpenGL::V2_1;
-    // let opengl = OpenGL::V3_2;
+    // let opengl = OpenGL::V2_1;
+    let opengl = OpenGL::V3_2;
 
     // Create Glutin window.
-    let mut window: Window = WindowSettings::new("spinning-square", [200, 200])
+    let mut window: Window = WindowSettings::new("spinning-square", [X_MAX, Y_MAX])
         .graphics_api(opengl)
         .exit_on_esc(true)
         .build()
         .unwrap();
 
+    let mut rng = rand::thread_rng();
     // Create new game and run
     let mut app = App {
         gl: GlGraphics::new(opengl),
-        rotation: 0.0,
+        bodies: vec![Ball {
+            position: [100.0, 100.0],
+            // velocity: [rng.gen::<f64>() * 10.0, 0.0],
+            velocity: [10.0, 30.0],
+            radius: 10.0,
+        }],
     };
 
     let mut events = Events::new(EventSettings::new());

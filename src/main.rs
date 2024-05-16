@@ -9,10 +9,10 @@ use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
-use rand::prelude::*;
+// use rand::prelude::*;
 
-const X_MAX: u32 = 1_000;
-const Y_MAX: u32 = 1_000;
+const X_MAX: u32 = 500;
+const Y_MAX: u32 = 500;
 
 pub struct App {
     gl: GlGraphics,
@@ -23,6 +23,15 @@ struct Ball {
     position: Vec2d,
     velocity: Vec2d,
     radius: f64,
+}
+
+impl Ball {
+    fn render_coordinates(&self) -> [f64; 2] {
+        [
+            self.position[0] - self.radius,
+            self.position[1] - self.radius,
+        ]
+    }
 }
 
 /*
@@ -41,7 +50,7 @@ impl App {
 
             for b in self.bodies.iter() {
                 let square = rectangle::square(0.0, 0.0, b.radius * 2.0);
-                let transform = c.transform.trans_pos(b.position);
+                let transform = c.transform.trans_pos(b.render_coordinates());
                 ellipse(RED, square, transform, g);
             }
         });
@@ -52,9 +61,6 @@ impl App {
         for b in self.bodies.iter_mut() {
             b.position[0] += args.dt * b.velocity[0];
             b.position[1] += args.dt * b.velocity[1];
-            // TODO: This currently undershoots the minimum and overshoots the maximums
-            // I'm assuming that's because the cooridnates for drawing are the upper left-hand
-            // corner of the bounding rectangle and not the center of our circle
             for (i, item) in surface.iter().enumerate() {
                 if b.position[i] >= item - b.radius || b.position[i] <= b.radius {
                     b.velocity[i] = -b.velocity[i]
@@ -75,14 +81,14 @@ fn main() {
         .build()
         .unwrap();
 
-    let mut rng = rand::thread_rng();
+    // let mut rng = rand::thread_rng();
     // Create new game and run
     let mut app = App {
         gl: GlGraphics::new(opengl),
         bodies: vec![Ball {
             position: [100.0, 100.0],
             // velocity: [rng.gen::<f64>() * 10.0, 0.0],
-            velocity: [10.0, 30.0],
+            velocity: [60.0, 50.0],
             radius: 10.0,
         }],
     };

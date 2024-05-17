@@ -41,11 +41,14 @@ impl Ball {
             }
         }
     }
-    fn handle_ball_colisions(&mut self, inital_ball_props: &Vec<Ball>) {
+    fn handle_ball_colisions(&mut self, inital_ball_props: &Vec<Ball>, self_index: usize) {
         // TODO: That's right, the logic for handling these is more complex than
         // for the boundaries. The borrow checker seems designed to disallow
         // the way I implemented this in python
-        for other in inital_ball_props.iter() {
+        for (i, other) in inital_ball_props.iter().enumerate() {
+            if i == self_index {
+                break;
+            }
             let diff = graph_math::sub(self.position, other.position);
             let diff_len = graph_math::square_len(diff).sqrt();
             let center_seperation_len = self.radius + other.radius;
@@ -54,7 +57,11 @@ impl Ball {
             }
             let scale = 1.0 / diff_len;
             let normalized_direction = diff.map(|d| d * scale);
-            let correction_vector = (center_seperation_len - diff_len) / 2.0;
+            let correction_scaler = (center_seperation_len - diff_len) / 2.0;
+            self.position = graph_math::scale(
+                graph_math::add(self.position, normalized_direction),
+                correction_scaler,
+            )
         }
     }
 }
@@ -90,7 +97,7 @@ impl App {
             b.position[0] += args.dt * b.velocity[0];
             b.position[1] += args.dt * b.velocity[1];
             b.handle_boundary_colision(surface);
-            b.handle_ball_colisions(&init_ball_states);
+            b.handle_ball_colisions(&init_ball_states, i);
         }
     }
 }

@@ -48,13 +48,13 @@ impl Ball {
         let damping = 1.0;
         for (i, other) in inital_ball_props.iter().enumerate() {
             if i == self_index {
-                break;
+                continue;
             }
             let diff = graph_math::sub(self.position, other.position);
             let diff_len = graph_math::square_len(diff).sqrt();
             let center_seperation_len = self.radius + other.radius;
             if diff_len == 0.0 || diff_len > center_seperation_len {
-                break;
+                continue;
             }
             let scale = 1.0 / diff_len;
             let normalized_direction = diff.map(|d| d * scale);

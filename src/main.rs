@@ -44,55 +44,50 @@ impl Ball {
             }
         }
     }
-    fn handle_ball_colisions(&mut self, inital_ball_props: &[Ball], self_index: usize) {
+    fn handle_ball_colisions(&mut self, other: &mut Ball) {
         let damping = 1.0;
-        for (i, other) in inital_ball_props.iter().enumerate() {
-            if i == self_index {
-                continue;
-            }
-            let diff = graph_math::sub(self.position, other.position);
-            let diff_len = graph_math::square_len(diff).sqrt();
-            let center_seperation_len = self.radius + other.radius;
-            if diff_len == 0.0 || diff_len > center_seperation_len {
-                continue;
-            }
-            let scale = 1.0 / diff_len;
-            let normalized_direction = diff.map(|d| d * scale);
-            let correction_scaler = (center_seperation_len - diff_len) / 2.0;
-            let pos_n_dir_sum = graph_math::add(self.position, normalized_direction);
-            self.position = [
-                pos_n_dir_sum[0] * -correction_scaler,
-                pos_n_dir_sum[1] * -correction_scaler,
-            ];
-
-            let self_init_v = graph_math::dot(self.velocity, normalized_direction);
-            let other_init_v = graph_math::dot(other.velocity, normalized_direction);
-
-            let m1 = self.mass;
-            let m2 = other.mass;
-            let combined_mass = m1 + m2;
-
-            let self_end_v = (m1 * self_init_v + m2 * other_init_v
-                - m2 * (self_init_v - other_init_v) * damping)
-                / combined_mass;
-
-            // INFO: Pretty sure this and the line begining let other_diff_v...
-            // won't be utilized the way they were in my Python implementation
-            // but I'm going to keep them here untill I'm clear on the best way
-            // to optimize this approach
-
-            // let other_end_v = (m1 * self_init_v + m2 * other_init_v
-            //     - m1 * (other_init_v - self_init_v) * damping)
-            //     / combined_mass;
-            // let other_diff_v = other_end_v - other_init_v;
-
-            let self_diff_v = self_end_v - self_init_v;
-            let sum_v_and_normal_direction = graph_math::add(self.velocity, normalized_direction);
-            self.velocity = [
-                sum_v_and_normal_direction[0] * self_diff_v,
-                sum_v_and_normal_direction[1] * self_diff_v,
-            ];
+        let diff = graph_math::sub(self.position, other.position);
+        let diff_len = graph_math::square_len(diff).sqrt();
+        let center_seperation_len = self.radius + other.radius;
+        if diff_len == 0.0 || diff_len > center_seperation_len {
+            return;
         }
+        let scale = 1.0 / diff_len;
+        let normalized_direction = diff.map(|d| d * scale);
+        let correction_scaler = (center_seperation_len - diff_len) / 2.0;
+        let pos_n_dir_sum = graph_math::add(self.position, normalized_direction);
+        self.position = [
+            pos_n_dir_sum[0] * -correction_scaler,
+            pos_n_dir_sum[1] * -correction_scaler,
+        ];
+
+        let self_init_v = graph_math::dot(self.velocity, normalized_direction);
+        let other_init_v = graph_math::dot(other.velocity, normalized_direction);
+
+        let m1 = self.mass;
+        let m2 = other.mass;
+        let combined_mass = m1 + m2;
+
+        let self_end_v = (m1 * self_init_v + m2 * other_init_v
+            - m2 * (self_init_v - other_init_v) * damping)
+            / combined_mass;
+
+        // INFO: Pretty sure this and the line begining let other_diff_v...
+        // won't be utilized the way they were in my Python implementation
+        // but I'm going to keep them here untill I'm clear on the best way
+        // to optimize this approach
+
+        // let other_end_v = (m1 * self_init_v + m2 * other_init_v
+        //     - m1 * (other_init_v - self_init_v) * damping)
+        //     / combined_mass;
+        // let other_diff_v = other_end_v - other_init_v;
+
+        let self_diff_v = self_end_v - self_init_v;
+        let sum_v_and_normal_direction = graph_math::add(self.velocity, normalized_direction);
+        self.velocity = [
+            sum_v_and_normal_direction[0] * self_diff_v,
+            sum_v_and_normal_direction[1] * self_diff_v,
+        ];
     }
 }
 
@@ -117,13 +112,15 @@ impl App {
     fn update(&mut self, args: &UpdateArgs) {
         let surface = [Into::<f64>::into(X_MAX), Into::<f64>::into(Y_MAX)];
 
-        let init_ball_states = self.bodies.clone();
+        let mut init_ball_states = self.bodies.clone();
 
         for (i, b) in self.bodies.iter_mut().enumerate() {
             b.position[0] += args.dt * b.velocity[0];
             b.position[1] += args.dt * b.velocity[1];
             b.handle_boundary_colision(surface);
-            b.handle_ball_colisions(&init_ball_states, i);
+            for ob in init_ball_states.iter_mut().skip(i + 1) {
+                b.handle_ball_colisions(ob);
+            }
         }
     }
 }
@@ -137,7 +134,7 @@ fn main() {
     let opengl = OpenGL::V3_2;
 
     // Create Glutin window.
-    let mut window: Window = WindowSettings::new("spinning-square", [X_MAX, Y_MAX])
+    let mut window: Window = WindowSettings::new("bouncing-balls", [X_MAX, Y_MAX])
         .graphics_api(opengl)
         .exit_on_esc(true)
         .build()

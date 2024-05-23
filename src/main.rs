@@ -19,6 +19,7 @@ const Y_MAX: u32 = 500;
 
 pub struct App {
     gl: GlGraphics,
+    simulation: Simulation
     bodies: Vec<Ball>,
 }
 
@@ -30,7 +31,19 @@ struct Ball {
     mass: f64,
 }
 
-impl Ball {
+struct Wall {
+    line: graph_math::Matrix2d
+    
+}
+
+
+// NOTE: I'm sure there is a method in the graphics library for checking if two polygons are overlapping
+trait Body {
+    fn render_coordinates(&self) -> [f64; 2];
+    fn is_coliding_with<T: Body>(&self, other_body: &T) -> bool;
+}
+
+impl Body for Ball {
     fn render_coordinates(&self) -> [f64; 2] {
         [
             self.position[0] - self.radius,
@@ -44,53 +57,51 @@ impl Ball {
             }
         }
     }
-    fn handle_ball_colisions(&mut self, other: &mut Ball) {
-        let damping = 1.0;
-        let diff = graph_math::sub(self.position, other.position);
-        let diff_len = graph_math::square_len(diff).sqrt();
-        let center_seperation_len = self.radius + other.radius;
-        if diff_len == 0.0 || diff_len > center_seperation_len {
-            return;
-        }
-        let scale = 1.0 / diff_len;
-        let normalized_direction = diff.map(|d| d * scale);
-        let correction_scaler = (center_seperation_len - diff_len) / 2.0;
-        let pos_n_dir_sum = graph_math::add(self.position, normalized_direction);
-        self.position = [
-            pos_n_dir_sum[0] * -correction_scaler,
-            pos_n_dir_sum[1] * -correction_scaler,
-        ];
-
-        let self_init_v = graph_math::dot(self.velocity, normalized_direction);
-        let other_init_v = graph_math::dot(other.velocity, normalized_direction);
-
-        let m1 = self.mass;
-        let m2 = other.mass;
-        let combined_mass = m1 + m2;
-
-        let self_end_v = (m1 * self_init_v + m2 * other_init_v
-            - m2 * (self_init_v - other_init_v) * damping)
-            / combined_mass;
-
-        // INFO: Pretty sure this and the line begining let other_diff_v...
-        // won't be utilized the way they were in my Python implementation
-        // but I'm going to keep them here untill I'm clear on the best way
-        // to optimize this approach
-
-        // let other_end_v = (m1 * self_init_v + m2 * other_init_v
-        //     - m1 * (other_init_v - self_init_v) * damping)
-        //     / combined_mass;
-        // let other_diff_v = other_end_v - other_init_v;
-
-        let self_diff_v = self_end_v - self_init_v;
-        let sum_v_and_normal_direction = graph_math::add(self.velocity, normalized_direction);
-        self.velocity = [
-            sum_v_and_normal_direction[0] * self_diff_v,
-            sum_v_and_normal_direction[1] * self_diff_v,
-        ];
-    }
 }
+fn handle_ball_colision(ball: &Ball, other: &Ball) {
+    let damping = 1.0;
+    let diff = graph_math::sub(ball.position, other.position);
+    let diff_len = graph_math::square_len(diff).sqrt();
+    let center_seperation_len = ball.radius + other.radius;
+    if diff_len == 0.0 || diff_len > center_seperation_len {
+        return;
+    }
+    let scale = 1.0 / diff_len;
+    let normalized_direction = diff.map(|d| d * scale);
+    let correction_scaler = (center_seperation_len - diff_len) / 2.0;
+    let pos_n_dir_sum = graph_math::add(ball.position, normalized_direction);
+    ball.position = [
+        pos_n_dir_sum[0] * -correction_scaler,
+        pos_n_dir_sum[1] * -correction_scaler,
+    ];
 
+    let ball_init_v = graph_math::dot(ball.velocity, normalized_direction);
+    let other_init_v = graph_math::dot(other.velocity, normalized_direction);
+
+    let m1 = ball.mass;
+    let m2 = other.mass;
+    let combined_mass = m1 + m2;
+
+    let ball_end_v = (m1 * ball_init_v + m2 * other_init_v
+        - m2 * (ball_init_v - other_init_v) * damping)
+        / combined_mass;
+    let ball_diff_v = ball_end_v - ball_init_v;
+    let sum_v_and_normal_direction = graph_math::add(ball.velocity, normalized_direction);
+    ball.velocity = [
+        sum_v_and_normal_direction[0] * ball_diff_v,
+        sum_v_and_normal_direction[1] * ball_diff_v,
+    ];
+
+    let other_end_v = (m1 * ball_init_v + m2 * other_init_v
+        - m1 * (other_init_v - ball_init_v) * damping)
+        / combined_mass;
+    let other_diff_v = other_end_v - other_init_v;
+    let other_sum_v_and_normal_direction = graph_math::add(other.velocity, normalized_direction);
+    other.velocity = [
+        other_sum_v_and_normal_direction[0] * other_diff_v,
+        other_sum_v_and_normal_direction[1] * other_diff_v,
+    ]
+}
 impl App {
     fn render(&mut self, args: &RenderArgs) {
         use graphics::*;
@@ -114,14 +125,26 @@ impl App {
 
         let mut init_ball_states = self.bodies.clone();
 
-        for (i, b) in self.bodies.iter_mut().enumerate() {
-            b.position[0] += args.dt * b.velocity[0];
-            b.position[1] += args.dt * b.velocity[1];
-            b.handle_boundary_colision(surface);
-            for ob in init_ball_states.iter_mut().skip(i + 1) {
-                b.handle_ball_colisions(ob);
-            }
-        }
+        // I think about one array turning into another array of the same number
+        // of elements as a "map"
+
+        let mut i = 0;
+        self.bodies = <std::vec::Vec<Ball> as Clone>::clone(&self.bodies)
+            .into_iter()
+            .map(|b| {
+                i += 1;
+                let other_bodies = &self.bodies[i..];
+                other_bodies.iter().fold(b, |b1, _b2| b1)
+            })
+            .collect();
+        // for (i, b) in self.bodies.iter_mut().enumerate() {
+        //     b.position[0] += args.dt * b.velocity[0];
+        //     b.position[1] += args.dt * b.velocity[1];
+        //     b.handle_boundary_colision(surface);
+        //     for ob in init_ball_states.iter_mut().skip(i + 1) {
+        //         b.handle_ball_colision(ob);
+        //     }
+        // }
     }
 }
 

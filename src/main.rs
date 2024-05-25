@@ -9,7 +9,13 @@ struct App {}
 struct  Window {}
 struct Simulation {}
 struct SimulationView {}
-type Enclosure = Polygon;
+// Save this for a idea for refinement
+// type Enclosure = Polygon;
+struct Enclosure<'a> {
+    walls: &'a[[i64; 2];2]
+}
+
+    
 
 fn main() {
     

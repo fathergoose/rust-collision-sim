@@ -4,19 +4,23 @@
 // out the rough outline of an application.
 
 extern crate graphics;
+use graphics::math::Vec2d;
 use graphics::{Line, Polygon};
+/// A 2D vector.
+//pub type Vector2<T> = [T; 2];
 struct App {}
-struct  Window {}
+struct Window {}
 struct Simulation {}
 struct SimulationView {}
-// Save this for a idea for refinement
-// type Enclosure = Polygon;
-struct Enclosure<'a> {
-    walls: &'a[[i64; 2];2]
+struct Enclosure {
+    walls: [[i64; 2]; 2],
+}
+struct Particle {
+    // particles are spheres for now
+    radius: u64,
+    mass: u64, // May i define this in terms of its radius?
+    position: Vec2d<i64>,
+    velocity: Vec2d<i64>,
 }
 
-    
-
-fn main() {
-    
-}
+fn main() {}

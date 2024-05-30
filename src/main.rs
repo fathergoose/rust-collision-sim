@@ -18,6 +18,7 @@ const FG: [f32; 4] = [0.1, 0.1, 0.1, 1.0];
 
 struct App {
     gl: GlGraphics,
+    simulation: Simulation,
 }
 // Handled by glutin window?
 // struct Window {}
@@ -49,7 +50,6 @@ impl App {
 fn main() {
     let opengl = OpenGL::V3_2;
 
-    // Create Glutin window.
     let mut window: Window = WindowSettings::new("bouncing-balls", WINDOW_SIZE)
         .graphics_api(opengl)
         .exit_on_esc(true)
@@ -58,6 +58,15 @@ fn main() {
 
     let mut app = App {
         gl: GlGraphics::new(opengl),
+        simulation: Simulation {
+            bodies: vec![Particle {
+                position: [140.0, 200.0],
+                // velocity: [rng.gen::<f64>() * 10.0, 0.0],
+                velocity: [120.0, 10.0],
+                radius,
+                mass: radius_to_volume_in_l3(radius),
+            }],
+        },
     };
 
     let mut events = Events::new(EventSettings::new());

@@ -27,14 +27,14 @@ struct Simulation {
 }
 struct View {}
 struct Enclosure {
-    walls: [[i64; 2]; 2],
+    walls: [[f64; 2]; 2],
 }
 struct Particle {
     // spheres for now
     radius: u64,
     mass: u64,
-    position: Vec2d<i64>,
-    velocity: Vec2d<i64>,
+    position: Vec2d<f64>,
+    velocity: Vec2d<f64>,
 }
 
 impl App {

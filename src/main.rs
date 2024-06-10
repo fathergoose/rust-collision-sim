@@ -44,7 +44,11 @@ impl App {
         });
         // Render Particles
     }
-    fn update(&mut self, args: &UpdateArgs) {}
+    fn update(&mut self, args: &UpdateArgs) {
+        for body in &self.simulation.bodies {
+            print!("x: {}, y: {}", body.position[0], body.position[1])
+        }
+    }
 }
 
 fn main() {

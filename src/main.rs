@@ -4,9 +4,12 @@ extern crate graphics;
 extern crate opengl_graphics;
 extern crate piston;
 
+use std::f64::consts::PI;
+
 use glutin_window::GlutinWindow as Window;
 use graphics::math as gmath;
 use graphics::math::Vec2d;
+use graphics::types::Radius;
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
@@ -31,8 +34,8 @@ struct Enclosure {
 }
 struct Particle {
     // spheres for now
-    radius: u64,
-    mass: u64,
+    radius: f64,
+    mass: f64,
     position: Vec2d<f64>,
     velocity: Vec2d<f64>,
 }
@@ -51,6 +54,10 @@ impl App {
     }
 }
 
+fn radius_to_volume_in_l3(rad: f64) -> f64 {
+    return rad.powf(3.0) * PI * 0.75;
+}
+
 fn main() {
     let opengl = OpenGL::V3_2;
 
@@ -60,12 +67,12 @@ fn main() {
         .build()
         .unwrap();
 
+    let radius: f64 = 20.0;
     let mut app = App {
         gl: GlGraphics::new(opengl),
         simulation: Simulation {
             bodies: vec![Particle {
                 position: [140.0, 200.0],
-                // velocity: [rng.gen::<f64>() * 10.0, 0.0],
                 velocity: [120.0, 10.0],
                 radius,
                 mass: radius_to_volume_in_l3(radius),

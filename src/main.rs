@@ -4,6 +4,7 @@ extern crate graphics;
 extern crate opengl_graphics;
 extern crate piston;
 
+use core::f64;
 use std::f64::consts::PI;
 
 use glutin_window::GlutinWindow as Window;
@@ -27,10 +28,11 @@ struct App {
 // struct Window {}
 struct Simulation {
     bodies: Vec<Particle>,
+    enclosure: Enclosure,
 }
 struct View {}
 struct Enclosure {
-    walls: [[f64; 2]; 2],
+    walls: Vec2d<f64>,
 }
 struct Particle {
     // spheres for now
@@ -40,16 +42,50 @@ struct Particle {
     velocity: Vec2d<f64>,
 }
 
+impl Particle {
+    fn render_coordinates(&self) -> [f64; 2] {
+        [
+            self.position[0] - self.radius,
+            self.position[1] - self.radius,
+        ]
+    }
+    fn tick(&mut self, dt: f64) {
+        for (i, vel) in self.velocity.into_iter().enumerate() {
+            self.position[i] += (vel * dt);
+        }
+    }
+}
+
 impl App {
     fn render(&mut self, args: &RenderArgs) {
         self.gl.draw(args.viewport(), |ctx, glg| {
             graphics::clear(BG, glg);
+
+            for p in self.simulation.bodies.iter() {
+                let square = graphics::rectangle::square(0.0, 0.0, p.radius * 2.0);
+                let transform =
+                    graphics::Transformed::trans_pos(ctx.transform, p.render_coordinates());
+                graphics::ellipse(FG, square, transform, glg);
+            }
         });
-        // Render Particles
     }
+
     fn update(&mut self, args: &UpdateArgs) {
-        for body in &self.simulation.bodies {
-            print!("x: {}, y: {}", body.position[0], body.position[1])
+        let bodies = &mut self.simulation.bodies;
+        let enclosure = &self.simulation.enclosure;
+
+        for (i, particle) in bodies.iter_mut().enumerate() {
+            particle.tick(args.dt);
+            enclosure.handle_boundary_colision(particle);
+        }
+    }
+}
+impl Enclosure {
+    fn handle_boundary_colision(&self, particle: &mut Particle) {
+        for (i, item) in self.walls.iter().enumerate() {
+            if self.walls[i] >= item - particle.radius || particle.position[i] <= particle.radius {
+                particle.velocity[i] = -particle.velocity[i]
+            }
         }
     }
 }
@@ -77,6 +113,9 @@ fn main() {
                 radius,
                 mass: radius_to_volume_in_l3(radius),
             }],
+            enclosure: Enclosure {
+                walls: [1000.0, 1000.0],
+            },
         },
     };
 

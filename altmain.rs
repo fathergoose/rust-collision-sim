@@ -1,25 +1,43 @@
-extern crate glutin_window;
+
+
+#![allow(warnings)]
+
 extern crate graphics;
 extern crate opengl_graphics;
 extern crate piston;
 
+use core::f64;
 use std::f64::consts::PI;
 
 use glutin_window::GlutinWindow as Window;
-use graphics::math as graph_math;
+use graphics::math as gmath;
 use graphics::math::Vec2d;
+use graphics::types::Radius;
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
-mod app;
 
 const X_MAX: u32 = 500;
 const Y_MAX: u32 = 500;
 const N_BODY: usize = 2;
 
+struct App {
+    gl: GlGraphics,
+    bodies: [Ball; N_BODY],
+}
 
-impl Ball {
+#[derive(Clone, Copy)]
+struct Ball {
+    position: Vec2d<f64>,
+    velocity: Vec2d<f64>,
+    radius: f64,
+    mass: f64,
+    position: Vec2d<f64>,
+    velocity: Vec2d<f64>,
+}
+
+impl Particle {
     fn render_coordinates(&self) -> [f64; 2] {
         [
             self.position[0] - self.radius,
@@ -99,24 +117,21 @@ impl Ball {
 
 impl App {
     fn render(&mut self, args: &RenderArgs) {
-        use graphics::*;
+        self.gl.draw(args.viewport(), |ctx, glg| {
+            graphics::clear(BG, glg);
 
-        const BG: [f32; 4] = [0.95, 0.95, 0.95, 1.0];
-        const FG: [f32; 4] = [0.1, 0.1, 0.1, 1.0];
-
-        self.gl.draw(args.viewport(), |c, g| {
-            clear(BG, g);
-
-            for b in self.bodies.iter() {
-                let square = rectangle::square(0.0, 0.0, b.radius * 2.0);
-                let transform = c.transform.trans_pos(b.render_coordinates());
-                ellipse(FG, square, transform, g);
+            for p in self.simulation.bodies.iter() {
+                let square = graphics::rectangle::square(0.0, 0.0, p.radius * 2.0);
+                let transform =
+                    graphics::Transformed::trans_pos(ctx.transform, p.render_coordinates());
+                graphics::ellipse(FG, square, transform, glg);
             }
         });
     }
 
     fn update(&mut self, args: &UpdateArgs) {
-        let surface = [Into::<f64>::into(X_MAX), Into::<f64>::into(Y_MAX)];
+        let bodies = &mut self.simulation.bodies;
+        let enclosure = &self.simulation.enclosure;
 
         let init_ball_states = self.bodies;
         let mut result_ball_states: [Ball; 2] = [Ball {
@@ -127,19 +142,23 @@ impl App {
         }; 2];
 
         for (i, b) in self.bodies.iter().enumerate() {
-            // TODO: Tick returns the new position
-            let position = tick(b, args);
-            let new_ball
+            /*
+             * I need to re-think the whole thing with no mutability
+             * At this point, I've avoided it everywhere but `fn check_boundary_colision(...)`
+             * There's really no need for it if one doesn't care about performance (I don't)
+             */
+
+            tick(b, args);
             b.handle_boundary_colision(surface);
             for (j, ob) in init_ball_states.iter().skip(i + 1).enumerate() {
                 match b.handle_ball_colisions(ob) {
                     Some((ball, other_ball)) => {
                         result_ball_states[i] = ball;
-                        result_ball_states[j + 1] = other_ball
+                        result_ball_states[j] = other_ball
                     }
                     None => {
                         result_ball_states[i] = *b;
-                        result_ball_states[j + 1] = *ob;
+                        result_ball_states[j] = *ob;
                     }
                 }
             }
@@ -176,6 +195,9 @@ fn main() {
                 velocity: [120.0, 10.0],
                 radius,
                 mass: radius_to_volume_in_l3(radius),
+            }],
+            enclosure: Enclosure {
+                walls: [1000.0, 1000.0],
             },
             Ball {
                 position: [100.0, 100.0],
@@ -187,11 +209,11 @@ fn main() {
     };
 
     let mut events = Events::new(EventSettings::new());
+
     while let Some(e) = events.next(&mut window) {
         if let Some(args) = e.render_args() {
             app.render(&args);
         }
-
         if let Some(args) = e.update_args() {
             app.update(&args);
         }

@@ -13,6 +13,7 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 mod app;
+use app::Ball;
 
 const X_MAX: u32 = 500;
 const Y_MAX: u32 = 500;

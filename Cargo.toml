@@ -3,6 +3,10 @@ name = "rust-collision-sim"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "FeO"
+path = "main.rs"
+
 [dependencies]
 piston = "0.55.0"
 piston2d-graphics = "0.44.0"

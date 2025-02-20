@@ -6,7 +6,6 @@ extern crate piston;
 use std::f64::consts::PI;
 
 use glutin_window::GlutinWindow as Window;
-use graphics::math as graph_math;
 use graphics::math::Vec2d;
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
@@ -17,8 +16,6 @@ use app::Ball;
 
 const X_MAX: u32 = 500;
 const Y_MAX: u32 = 500;
-
-
 
 impl app::App {
     fn render(&mut self, args: &RenderArgs) {
@@ -52,7 +49,7 @@ impl app::App {
         for (i, b) in self.bodies.iter().enumerate() {
             // TODO: Tick returns the new position
             let position = tick(b, args);
-            let new_ball
+            let new_ball: Ball;
             b.handle_boundary_colision(surface);
             for (j, ob) in init_ball_states.iter().skip(i + 1).enumerate() {
                 match b.handle_ball_colisions(ob) {
@@ -91,7 +88,7 @@ fn main() {
         .unwrap();
 
     let radius = 50.0;
-    let mut app = App {
+    let mut app = app::App {
         gl: GlGraphics::new(opengl),
         bodies: [
             Ball {

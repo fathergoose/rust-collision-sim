@@ -1,5 +1,3 @@
-
-
 #![allow(warnings)]
 
 extern crate graphics;
@@ -25,6 +23,7 @@ const N_BODY: usize = 2;
 struct App {
     gl: GlGraphics,
     bodies: [Ball; N_BODY],
+    enclosure: Vec2d<f64>,
 }
 
 #[derive(Clone, Copy)]
@@ -33,18 +32,16 @@ struct Ball {
     velocity: Vec2d<f64>,
     radius: f64,
     mass: f64,
-    position: Vec2d<f64>,
-    velocity: Vec2d<f64>,
 }
 
-impl Particle {
+impl Ball {
     fn render_coordinates(&self) -> [f64; 2] {
         [
             self.position[0] - self.radius,
             self.position[1] - self.radius,
         ]
     }
-    fn handle_boundary_colision(&self, boundries: Vec2d) -> Ball {
+    fn handle_boundary_colision(&self, boundries: &Vec2d) -> Ball {
         for (i, item) in boundries.iter().enumerate() {
             if self.position[i] >= item - self.radius || self.position[i] <= self.radius {
                 let mut new_ball = *self;
@@ -56,8 +53,8 @@ impl Particle {
     }
     fn handle_ball_colisions(&self, other: &Ball) -> Option<(Ball, Ball)> {
         let damping = 1.0;
-        let diff = graph_math::sub(self.position, other.position);
-        let diff_len = graph_math::square_len(diff).sqrt();
+        let diff = gmath::sub(self.position, other.position);
+        let diff_len = gmath::square_len(diff).sqrt();
         let center_seperation_len = self.radius + other.radius;
         if diff_len == 0.0 || diff_len > center_seperation_len {
             return None;
@@ -65,10 +62,10 @@ impl Particle {
         let scale = 1.0 / diff_len;
         let normalized_direction = diff.map(|d| d * scale);
         let correction_scaler = (center_seperation_len - diff_len) / 2.0;
-        let pos_n_dir_sum = graph_math::add(self.position, normalized_direction);
+        let pos_n_dir_sum = gmath::add(self.position, normalized_direction);
 
-        let self_init_v = graph_math::dot(self.velocity, normalized_direction);
-        let other_init_v = graph_math::dot(other.velocity, normalized_direction);
+        let self_init_v = gmath::dot(self.velocity, normalized_direction);
+        let other_init_v = gmath::dot(other.velocity, normalized_direction);
 
         let m1 = self.mass;
         let m2 = other.mass;
@@ -78,14 +75,13 @@ impl Particle {
             - m2 * (self_init_v - other_init_v) * damping)
             / combined_mass;
         let self_diff_v = self_end_v - self_init_v;
-        let sum_v_and_normal_direction = graph_math::add(self.velocity, normalized_direction);
+        let sum_v_and_normal_direction = gmath::add(self.velocity, normalized_direction);
 
         let other_end_v = (m1 * self_init_v + m2 * other_init_v
             - m1 * (other_init_v - self_init_v) * damping)
             / combined_mass;
         let other_diff_v = other_end_v - other_init_v;
-        let other_sum_v_and_normal_direction =
-            graph_math::add(other.velocity, normalized_direction);
+        let other_sum_v_and_normal_direction = gmath::add(other.velocity, normalized_direction);
 
         let new_self = Ball {
             position: [
@@ -117,10 +113,13 @@ impl Particle {
 
 impl App {
     fn render(&mut self, args: &RenderArgs) {
+        use graphics::*;
+        const BG: [f32; 4] = [0.95, 0.95, 0.95, 1.0];
+        const FG: [f32; 4] = [0.1, 0.1, 0.1, 1.0];
         self.gl.draw(args.viewport(), |ctx, glg| {
             graphics::clear(BG, glg);
 
-            for p in self.simulation.bodies.iter() {
+            for p in self.bodies.iter() {
                 let square = graphics::rectangle::square(0.0, 0.0, p.radius * 2.0);
                 let transform =
                     graphics::Transformed::trans_pos(ctx.transform, p.render_coordinates());
@@ -130,8 +129,8 @@ impl App {
     }
 
     fn update(&mut self, args: &UpdateArgs) {
-        let bodies = &mut self.simulation.bodies;
-        let enclosure = &self.simulation.enclosure;
+        let bodies = &mut self.bodies;
+        let enclosure = &self.enclosure;
 
         let init_ball_states = self.bodies;
         let mut result_ball_states: [Ball; 2] = [Ball {
@@ -142,14 +141,8 @@ impl App {
         }; 2];
 
         for (i, b) in self.bodies.iter().enumerate() {
-            /*
-             * I need to re-think the whole thing with no mutability
-             * At this point, I've avoided it everywhere but `fn check_boundary_colision(...)`
-             * There's really no need for it if one doesn't care about performance (I don't)
-             */
-
             tick(b, args);
-            b.handle_boundary_colision(surface);
+            b.handle_boundary_colision(enclosure);
             for (j, ob) in init_ball_states.iter().skip(i + 1).enumerate() {
                 match b.handle_ball_colisions(ob) {
                     Some((ball, other_ball)) => {
@@ -163,6 +156,7 @@ impl App {
                 }
             }
         }
+        self.bodies = result_ball_states;
     }
 }
 
@@ -186,26 +180,24 @@ fn main() {
         .build()
         .unwrap();
 
-    let radius = 50.0;
+    let radius = 10.0;
     let mut app = App {
         gl: GlGraphics::new(opengl),
         bodies: [
             Ball {
                 position: [140.0, 200.0],
-                velocity: [120.0, 10.0],
+                velocity: [1.0, 1.0],
                 radius,
                 mass: radius_to_volume_in_l3(radius),
-            }],
-            enclosure: Enclosure {
-                walls: [1000.0, 1000.0],
             },
             Ball {
                 position: [100.0, 100.0],
-                velocity: [60.0, 50.0],
+                velocity: [0.60, 0.50],
                 radius,
                 mass: radius_to_volume_in_l3(radius),
             },
         ],
+        enclosure: [1000.0, 1000.0],
     };
 
     let mut events = Events::new(EventSettings::new());

@@ -22,10 +22,9 @@ const N_BODY: usize = 2;
 
 struct App {
     gl: GlGraphics,
+    bodies: [Ball; N_BODY],
     enclosure: Vec2d<f64>,
 }
-
-// let bodies = [Ball; N_BODY];
 
 #[derive(Clone, Copy)]
 struct Ball {
@@ -35,24 +34,24 @@ struct Ball {
     mass: f64,
 }
 
-fn handle_boundary_colision(ball: &Ball, boundries: &Vec2d) -> Ball {
+fn handle_boundary_colision(ball: &Ball, boundries: &Vec2d) -> Vec2d {
     for (i, item) in boundries.iter().enumerate() {
         if ball.position[i] >= item - ball.radius || ball.position[i] <= ball.radius {
             let mut new_ball = *ball;
             new_ball.velocity[i] = -ball.velocity[i];
-            return new_ball;
+            return new_ball.velocity;
         }
     }
-    *ball
+    ball.velocity
 }
 
-fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> (Ball, Ball) {
+fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> [Ball; 2] {
     let damping = 1.0;
     let diff = gmath::sub(ball_a.position, ball_b.position);
     let diff_len = gmath::square_len(diff).sqrt();
     let center_seperation_len = ball_a.radius + ball_b.radius;
     if diff_len == 0.0 || diff_len > center_seperation_len {
-        return (ball_a, ball_b);
+        return [ball_a.clone(), ball_b.clone()];
     }
     let scale = 1.0 / diff_len;
     let normalized_direction = diff.map(|d| d * scale);
@@ -64,17 +63,17 @@ fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> (Ball, Ball) {
 
     let combined_mass = ball_a.mass + ball_b.mass;
 
-    let ball_a_end_v = (ball_b.mass * ball_a_init_v + ball_b.mass * ball_a_init_v
-        - m2 * (ball_a_init_v - other_init_v) * damping)
+    let ball_a_final_v = (ball_b.mass * ball_a_init_v + ball_b.mass * ball_a_init_v
+        - ball_b.mass * (ball_a_init_v - ball_b_init_v) * damping)
         / combined_mass;
-    let ball_a_diff_v = ball_a_end_v - ball_a_init_v;
-    let sum_v_and_normal_direction = gmath::add(ball_a.velocity, normalized_direction);
+    let ball_a_delta_v = ball_a_final_v - ball_a_init_v;
+    let ball_a_sum_v_and_normal_direction = gmath::add(ball_a.velocity, normalized_direction);
 
-    let ball_b_final_v = (m1 * ball_a_init_v + m2 * other_init_v
-        - m1 * (other_init_v - ball_a_init_v) * damping)
+    let ball_b_final_v = (ball_a.mass * ball_a_init_v + ball_b.mass * ball_b_init_v
+        - ball_a.mass * (ball_b_init_v - ball_a_init_v) * damping)
         / combined_mass;
     let ball_b_delta_v = ball_b_final_v - ball_b_init_v;
-    let other_sum_v_and_normal_direction = gmath::add(other.velocity, normalized_direction);
+    let ball_b_sum_v_and_normal_direction = gmath::add(ball_b.velocity, normalized_direction);
 
     let new_ball_a = Ball {
         position: [
@@ -82,8 +81,8 @@ fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> (Ball, Ball) {
             pos_n_dir_sum[1] * -correction_scaler,
         ],
         velocity: [
-            sum_v_and_normal_direction[0] * ball_a_diff_v,
-            sum_v_and_normal_direction[1] * ball_a_diff_v,
+            ball_a_sum_v_and_normal_direction[0] * ball_a_delta_v,
+            ball_a_sum_v_and_normal_direction[1] * ball_a_delta_v,
         ],
         mass: ball_a.mass,
         radius: ball_a.radius,
@@ -94,13 +93,13 @@ fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> (Ball, Ball) {
             pos_n_dir_sum[1] * correction_scaler,
         ],
         velocity: [
-            other_sum_v_and_normal_direction[0] * other_diff_v,
-            other_sum_v_and_normal_direction[1] * other_diff_v,
+            ball_b_sum_v_and_normal_direction[0] * ball_b_delta_v,
+            ball_b_sum_v_and_normal_direction[1] * ball_b_delta_v,
         ],
         mass: ball_b.mass,
         radius: ball_b.radius,
     };
-    (new_ball_a, new_other)
+    [new_ball_a, new_other]
 }
 // Refactor out all of the mutable self methods
 impl Ball {
@@ -123,7 +122,7 @@ impl App {
             for p in self.bodies.iter() {
                 let square = graphics::rectangle::square(0.0, 0.0, p.radius * 2.0);
                 let transform =
-                    graphics::Transformed::trans_pos(ctx.transform, p.render_coordinates());
+                    graphics::Transformed::trans_pos(ctx.transform, p.get_render_coordinates());
                 graphics::ellipse(FG, square, transform, glg);
             }
         });
@@ -133,7 +132,7 @@ impl App {
         let bodies = &mut self.bodies;
         let enclosure = &self.enclosure;
 
-        let init_ball_states = self.bodies;
+        let balls = self.bodies;
         let mut result_ball_states: [Ball; 2] = [Ball {
             position: [0.0, 0.0],
             velocity: [0.0, 0.0],
@@ -141,27 +140,23 @@ impl App {
             mass: 0.0,
         }; 2];
 
-        for (i, b) in self.bodies.iter().enumerate() {
-            tick(b, args);
-            b.handle_boundary_colision(enclosure);
-            for (j, ob) in init_ball_states.iter().skip(i + 1).enumerate() {
-                match b.handle_ball_colisions(ob) {
-                    Some((ball, other_ball)) => {
-                        result_ball_states[i] = ball;
-                        result_ball_states[j] = other_ball
-                    }
-                    None => {
-                        result_ball_states[i] = *b;
-                        result_ball_states[j] = *ob;
-                    }
-                }
+        for (outer_index, outer_ball) in self.bodies.iter_mut().enumerate() {
+            outer_ball.position = next_position(outer_ball, args);
+            outer_ball.velocity = handle_boundary_colision(outer_ball, enclosure);
+
+            // NOTE: Am I handling the "edge" cases of my list correctly here?
+            for (j, inner_ball) in balls.iter().skip(outer_index + 1).enumerate() {
+                let inner_index = j + 1;
+                let results = handle_ball_colisions(outer_ball, inner_ball);
+                result_ball_states[outer_index] = results[0];
+                result_ball_states[inner_index] = results[1];
             }
         }
         self.bodies = result_ball_states;
     }
 }
 
-fn tick(b: &Ball, args: &UpdateArgs) -> Vec2d<f64> {
+fn next_position(b: &Ball, args: &UpdateArgs) -> Vec2d<f64> {
     [
         b.position[0] + args.dt * b.velocity[0],
         b.position[1] + args.dt * b.velocity[1],
@@ -186,14 +181,14 @@ fn main() {
         gl: GlGraphics::new(opengl),
         bodies: [
             Ball {
-                position: [140.0, 200.0],
-                velocity: [1.0, 1.0],
+                position: [14.0, 20.0],
+                velocity: [100.0, 100.0],
                 radius,
                 mass: radius_to_volume_in_l3(radius),
             },
             Ball {
                 position: [100.0, 100.0],
-                velocity: [0.60, 0.50],
+                velocity: [60.0, 50.0],
                 radius,
                 mass: radius_to_volume_in_l3(radius),
             },

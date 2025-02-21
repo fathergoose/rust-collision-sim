@@ -137,15 +137,12 @@ impl App {
             mass: 0.0,
         }; 2];
 
-        for (i, b) in self.bodies.iter().enumerate() {
-            /*
-             * I need to re-think the whole thing with no mutability
-             * At this point, I've avoided it everywhere but `fn check_boundary_colision(...)`
-             * There's really no need for it if one doesn't care about performance (I don't)
-             */
+        for (i, b) in self.bodies.iter_mut().enumerate() {
+            result_ball_states[i].position = tick(b, args);
 
-            tick(b, args);
             b.handle_boundary_colision(surface);
+            // let updated_ball_position = tick(b, args);
+            // let result_ball_states = updated_ball.handle_boundary_colision(surface);
             for (j, ob) in init_ball_states.iter().skip(i + 1).enumerate() {
                 match b.handle_ball_colisions(ob) {
                     Some((ball, other_ball)) => {
@@ -159,6 +156,7 @@ impl App {
                 }
             }
         }
+        self.bodies = result_ball_states;
     }
 }
 
@@ -182,19 +180,19 @@ fn main() {
         .build()
         .unwrap();
 
-    let radius = 50.0;
+    let radius = 10.0;
     let mut app = App {
         gl: GlGraphics::new(opengl),
         bodies: [
             Ball {
                 position: [140.0, 200.0],
-                velocity: [120.0, 10.0],
+                velocity: [12.0, 1.0],
                 radius,
                 mass: radius_to_volume_in_l3(radius),
             },
             Ball {
                 position: [100.0, 100.0],
-                velocity: [60.0, 50.0],
+                velocity: [6.0, 5.0],
                 radius,
                 mass: radius_to_volume_in_l3(radius),
             },

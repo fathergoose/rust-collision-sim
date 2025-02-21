@@ -138,13 +138,14 @@ impl App {
             velocity: [0.0, 0.0],
             radius: 0.0,
             mass: 0.0,
-        }; 2];
+        }; N_BODY];
 
         for (outer_index, outer_ball) in self.bodies.iter_mut().enumerate() {
             outer_ball.position = next_position(outer_ball, args);
             outer_ball.velocity = handle_boundary_colision(outer_ball, enclosure);
 
             // NOTE: Am I handling the "edge" cases of my list correctly here?
+            // Nope, I'm not updating the position of the second ball
             for (j, inner_ball) in balls.iter().skip(outer_index + 1).enumerate() {
                 let inner_index = j + 1;
                 let results = handle_ball_colisions(outer_ball, inner_ball);

@@ -48,13 +48,13 @@ fn handle_boundary_colision(ball: &Ball, boundries: &Vec2d) -> Vec2d {
     velocity
 }
 
-fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> [Ball; 2] {
+fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> Vec2d {
     let damping = 1.0;
     let diff = gmath::sub(ball_a.position, ball_b.position);
     let diff_len = gmath::square_len(diff).sqrt();
     let center_seperation_len = ball_a.radius + ball_b.radius;
     if diff_len == 0.0 || diff_len > center_seperation_len {
-        return [ball_a.clone(), ball_b.clone()];
+        return ball_a.velocity;
     }
     let scale = 1.0 / diff_len;
     let normalized_direction = diff.map(|d| d * scale);
@@ -84,8 +84,8 @@ fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> [Ball; 2] {
             pos_n_dir_sum[1] * -correction_scaler,
         ],
         velocity: [
-            ball_a_sum_v_and_normal_direction[0] * ball_a_delta_v,
-            ball_a_sum_v_and_normal_direction[1] * ball_a_delta_v,
+            ball_a_sum_v_and_normal_direction[0] + ball_a_delta_v,
+            ball_a_sum_v_and_normal_direction[1] + ball_a_delta_v,
         ],
         mass: ball_a.mass,
         radius: ball_a.radius,
@@ -96,13 +96,13 @@ fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> [Ball; 2] {
             pos_n_dir_sum[1] * correction_scaler,
         ],
         velocity: [
-            ball_b_sum_v_and_normal_direction[0] * ball_b_delta_v,
-            ball_b_sum_v_and_normal_direction[1] * ball_b_delta_v,
+            ball_b_sum_v_and_normal_direction[0] + ball_b_delta_v,
+            ball_b_sum_v_and_normal_direction[1] + ball_b_delta_v,
         ],
         mass: ball_b.mass,
         radius: ball_b.radius,
     };
-    [new_ball_a, new_other]
+    new_ball_a.velocity
 }
 // Refactor out all of the mutable self methods
 impl Ball {
@@ -143,13 +143,14 @@ impl App {
             mass: 0.0,
         }; N_BODY];
 
-        for (i, outer_ball) in self.bodies.iter_mut().enumerate() {
-            let mut new_ball = Ball {
-                velocity: handle_boundary_colision(outer_ball, enclosure),
-                position: outer_ball.position,
-                radius: outer_ball.radius,
-                mass: outer_ball.mass,
-            };
+        for (i, outer_ball) in self.bodies.iter().enumerate() {
+            let mut new_ball = outer_ball.clone();
+            new_ball.velocity = handle_boundary_colision(outer_ball, enclosure);
+            for (j, inner_ball) in self.bodies.iter().enumerate() {
+                if j != i {
+                    new_ball.velocity = handle_ball_colisions(&new_ball, &inner_ball);
+                }
+            }
             new_ball.position = next_position(&new_ball, args);
             result_ball_states[i] = new_ball;
         }

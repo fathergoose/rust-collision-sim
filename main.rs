@@ -16,9 +16,9 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 
-const X_MAX: u32 = 500;
-const Y_MAX: u32 = 500;
-const N_BODY: usize = 2;
+const X_MAX: f64 = 300.0;
+const Y_MAX: f64 = 300.0;
+const N_BODY: usize = 3;
 
 struct App {
     gl: GlGraphics,
@@ -35,14 +35,17 @@ struct Ball {
 }
 
 fn handle_boundary_colision(ball: &Ball, boundries: &Vec2d) -> Vec2d {
-    for (i, item) in boundries.iter().enumerate() {
-        if ball.position[i] >= item - ball.radius || ball.position[i] <= ball.radius {
-            let mut new_ball = *ball;
-            new_ball.velocity[i] = -ball.velocity[i];
-            return new_ball.velocity;
-        }
+    let mut velocity = ball.velocity.clone();
+
+    if ball.position[0] >= boundries[0] - ball.radius || ball.position[0] <= ball.radius {
+        velocity[0] = -ball.velocity[0];
+        println!("X: {}, Y: {}", velocity[0], velocity[1]);
     }
-    ball.velocity
+    if ball.position[1] >= boundries[1] - ball.radius || ball.position[1] <= ball.radius {
+        velocity[1] = -ball.velocity[1];
+        println!("X: {}, Y: {}", velocity[0], velocity[1]);
+    }
+    velocity
 }
 
 fn handle_ball_colisions(ball_a: &Ball, ball_b: &Ball) -> [Ball; 2] {
@@ -133,24 +136,22 @@ impl App {
         let enclosure = &self.enclosure;
 
         let balls = self.bodies;
-        let mut result_ball_states: [Ball; 2] = [Ball {
+        let mut result_ball_states: [Ball; N_BODY] = [Ball {
             position: [0.0, 0.0],
             velocity: [0.0, 0.0],
             radius: 0.0,
             mass: 0.0,
-        }; 2];
+        }; N_BODY];
 
-        for (outer_index, outer_ball) in self.bodies.iter_mut().enumerate() {
-            outer_ball.position = next_position(outer_ball, args);
-            outer_ball.velocity = handle_boundary_colision(outer_ball, enclosure);
-
-            // NOTE: Am I handling the "edge" cases of my list correctly here?
-            for (j, inner_ball) in balls.iter().skip(outer_index + 1).enumerate() {
-                let inner_index = j + 1;
-                let results = handle_ball_colisions(outer_ball, inner_ball);
-                result_ball_states[outer_index] = results[0];
-                result_ball_states[inner_index] = results[1];
-            }
+        for (i, outer_ball) in self.bodies.iter_mut().enumerate() {
+            let mut new_ball = Ball {
+                velocity: handle_boundary_colision(outer_ball, enclosure),
+                position: outer_ball.position,
+                radius: outer_ball.radius,
+                mass: outer_ball.mass,
+            };
+            new_ball.position = next_position(&new_ball, args);
+            result_ball_states[i] = new_ball;
         }
         self.bodies = result_ball_states;
     }
@@ -158,8 +159,8 @@ impl App {
 
 fn next_position(b: &Ball, args: &UpdateArgs) -> Vec2d<f64> {
     [
-        b.position[0] + args.dt * b.velocity[0],
-        b.position[1] + args.dt * b.velocity[1],
+        b.position[0] + (args.dt * b.velocity[0]),
+        b.position[1] + (args.dt * b.velocity[1]),
     ]
 }
 
@@ -192,8 +193,14 @@ fn main() {
                 radius,
                 mass: radius_to_volume_in_l3(radius),
             },
+            Ball {
+                position: [200.0, 50.0],
+                velocity: [-10.0, -20.0],
+                radius,
+                mass: radius_to_volume_in_l3(radius),
+            },
         ],
-        enclosure: [1000.0, 1000.0],
+        enclosure: [X_MAX, Y_MAX],
     };
 
     let mut events = Events::new(EventSettings::new());
